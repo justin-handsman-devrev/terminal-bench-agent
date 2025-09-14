@@ -1,0 +1,53 @@
+## main
+ D .env.example
+ M .gitignore
+ M README.md
+ D SETUP.md
+ M package-lock.json
+ M package.json
+ D src/agents/base-agent.ts
+ D src/agents/coding-agent.ts
+ D src/agents/index.ts
+ D src/agents/orchestrator.ts
+ D src/cli.ts
+ D src/cli/commands.ts
+ D src/core/config.ts
+ D src/core/llm-client.ts
+ D src/core/logger.ts
+ D src/core/repository-analyzer.ts
+ D src/core/todo-manager.ts
+ M src/index.ts
+ D src/tools/base-tool.ts
+ D src/tools/code-tools.ts
+ D src/tools/edit-tools.ts
+ D src/tools/file-tools.ts
+ D src/tools/git-tools.ts
+ D src/tools/index.ts
+ D src/tools/todo-tools.ts
+ M src/types/index.ts
+ D src/utils/index.ts
+ M tsconfig.json
+?? .eslintrc.js
+?? .prettierrc
+?? Dockerfile
+?? __pycache__/
+?? env.example
+?? jest.config.js
+?? package.json.backup
+?? requirements.txt
+?? run-tb.sh
+?? runs/
+?? scripts/
+?? src/__tests__/
+?? src/agents/actions/
+?? src/agents/execution/
+?? src/agents/orchestrator-agent.ts
+?? src/agents/state/
+?? src/agents/subagents/
+?? src/agents/system-messages/
+?? src/core/execution/
+?? src/core/llm/
+?? src/core/logging/
+?? terminal_bench_wrapper.py
+?? test-filemanager-binary.js
+?? ts_agent_wrapper.py

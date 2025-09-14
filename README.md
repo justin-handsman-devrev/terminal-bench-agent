@@ -1,345 +1,113 @@
-# DevRev Coder Agent 🤖
+# 🤓 Multi-Agent Coding System (TypeScript)
 
-A sophisticated multi-agent AI coding system built with TypeScript that helps developers analyze, understand, and modify codebases using natural language instructions.
+## Overview
 
-## 🌟 Features
+This is a TypeScript port of the Python multi-agent orchestrator system. The system consists of:
 
-- **Multi-Agent Architecture**: Specialized agents for different tasks (Coding, Analysis, Planning)
-- **Intelligent Tool System**: Comprehensive set of tools for file operations, git management, and code analysis
-- **Repository-Aware**: Automatically analyzes and understands your codebase structure
-- **OpenRouter Integration**: Powered by state-of-the-art LLMs (Gemini 2.5 Flash by default)
-- **Beautiful Terminal UI**: Colored output using Chalk with intuitive commands
-- **Interactive & Batch Modes**: Chat interactively or execute single commands
-- **Context-Aware Operations**: Maintains conversation history and repository context
+- **Orchestrator Agent**: Strategic coordinator that manages tasks and delegates to subagents
+- **Explorer Agent**: Read-only investigation and verification specialist  
+- **Coder Agent**: Implementation specialist with write access
+- **Context Store**: Persistent knowledge sharing between agents
+- **Action System**: Comprehensive framework for agent-environment interaction
 
-## 🚀 Quick Start
+## Architecture
 
-### Prerequisites
+The system employs a hierarchical multi-agent architecture where:
+- The **Orchestrator** acts as the task manager and coordinator
+- **Subagents** are specialized workers for specific task types (exploration or coding)
+- Communication happens through structured reports and context sharing
+- A **Context Store** enables knowledge persistence and sharing across agent interactions
 
-- Node.js 18+ 
-- npm or yarn
-- OpenRouter API key ([Get one here](https://openrouter.ai/))
+## Key Features
+
+- **Smart Context Sharing**: Agents build and share knowledge artifacts through a persistent context store
+- **Task Management**: Comprehensive tracking of multi-step workflows with failure recovery
+- **Time-Conscious Orchestration**: Efficient delegation with precise task scoping
+- **Action-First Design**: All capabilities expressed as discrete, validated actions
+- **Forced Completion**: Ensures task termination with fallback mechanisms
+
+## Getting Started
 
 ### Installation
 
 ```bash
-# Clone or create the project
 npm install
+```
 
-# Initialize configuration
-npm run dev config --init
+### Development
 
-# Edit your .env file and add your OpenRouter API key
-# OPENROUTER_API_KEY=your_api_key_here
+```bash
+npm run dev
 ```
 
 ### Build
 
 ```bash
-# Build the project
 npm run build
-
-# Make globally available (optional)
-npm link
 ```
 
-## 📖 Usage
-
-### Interactive Mode
-
-Start a chat session with the AI agents:
+### Testing
 
 ```bash
-# Basic interactive mode
-devrev-coder chat
-
-# Specify repository path
-devrev-coder chat -r /path/to/your/project
-
-# Use multi-agent mode for complex tasks
-devrev-coder chat -m
-
-# Specify a particular agent
-devrev-coder chat -a CodingAgent
-```
-
-### One-Shot Execution
-
-Execute single commands:
-
-```bash
-# Analyze a file
-devrev-coder exec "Analyze the main.ts file and suggest improvements"
-
-# Create a new feature
-devrev-coder exec "Create a user authentication system with JWT tokens"
-
-# Refactor code
-devrev-coder exec "Refactor the UserService class to use dependency injection"
-```
-
-### Repository Analysis
-
-Get insights about your codebase:
-
-```bash
-# Analyze current directory
-devrev-coder analyze
-
-# Analyze specific path
-devrev-coder analyze /path/to/project
-
-# Output as JSON
-devrev-coder analyze -o json
-```
-
-### Agent Management
-
-```bash
-# List available agents
-devrev-coder agents
-
-# List available tools
-devrev-coder tools
-
-# Show tools by category
-devrev-coder tools -c file
-```
-
-## 🤖 Available Agents
-
-### CodingAgent
-Specialized in writing, modifying, and fixing code.
-
-**Capabilities:**
-- Write new code files
-- Modify existing code
-- Fix bugs and issues
-- Add tests and documentation
-- Implement new features
-- Apply coding best practices
-
-### AnalysisAgent
-Focused on understanding and analyzing codebases.
-
-**Capabilities:**
-- Analyze repository structure
-- Identify code patterns and architectures
-- Detect potential issues and improvements
-- Generate code documentation
-- Provide code quality metrics
-- Suggest refactoring opportunities
-
-### PlanningAgent
-Strategic planning for complex development tasks.
-
-**Capabilities:**
-- Break down complex tasks into steps
-- Create implementation roadmaps
-- Analyze requirements and dependencies
-- Estimate effort and complexity
-- Identify risks and challenges
-- Plan testing and validation strategies
-
-## 🛠️ Available Tools
-
-### File Operations
-- `read_file`: Read file contents
-- `write_file`: Write content to files
-- `list_directory`: List directory contents
-- `search_files`: Search for files matching patterns
-
-### Git Operations
-- `git_status`: Get repository status
-- `git_diff`: Show changes
-- `git_log`: View commit history
-- `git_add`: Stage files
-- `git_commit`: Create commits
-
-### Code Analysis
-- `analyze_code`: Extract code structure (functions, classes, imports)
-- `refactor_code`: Apply safe code transformations
-
-## ⚙️ Configuration
-
-Configuration is managed through environment variables. Create a `.env` file:
-
-```env
-# OpenRouter Configuration (Required)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=google/gemini-2.0-flash-experimental
-
-# Agent Configuration
-MAX_CONCURRENT_AGENTS=3
-MAX_CONTEXT_LENGTH=100000
-TEMPERATURE=0.1
-
-# Tool Configuration
-MAX_FILE_SIZE_KB=500
-ENABLE_GIT_OPERATIONS=true
-ENABLE_FILE_OPERATIONS=true
-
-# Logging
-LOG_LEVEL=info
-LOG_TO_FILE=false
-```
-
-### Configuration Commands
-
-```bash
-# Show current configuration
-devrev-coder config --show
-
-# Initialize .env file
-devrev-coder config --init
-```
-
-## 💡 Example Use Cases
-
-### Code Analysis and Improvement
-
-```bash
-devrev-coder chat
-
-# Example conversation:
-> Analyze my React components and suggest performance improvements
-> What security vulnerabilities can you find in my authentication system?
-> Review my database queries for potential optimizations
-```
-
-### Feature Development
-
-```bash
-# Plan and implement a complete feature
-devrev-coder exec "Plan and implement a REST API for user management with CRUD operations"
-
-# Add specific functionality
-devrev-coder exec "Add input validation and error handling to all API endpoints"
-```
-
-### Refactoring and Maintenance
-
-```bash
-# Code quality improvements
-devrev-coder exec "Refactor the codebase to follow SOLID principles"
-
-# Update dependencies
-devrev-coder exec "Update all npm dependencies and fix any breaking changes"
-
-# Add testing
-devrev-coder exec "Add unit tests for all service classes with at least 80% coverage"
-```
-
-## 🏗️ Architecture
-
-```
-src/
-├── agents/           # AI agents (Coding, Analysis, Planning)
-├── tools/           # Available tools for agents
-├── core/           # Core system components
-│   ├── config.ts      # Configuration management
-│   ├── logger.ts      # Logging system
-│   ├── llm-client.ts  # OpenRouter integration
-│   └── repository-analyzer.ts # Codebase analysis
-├── cli/            # Command-line interface
-├── types/          # TypeScript type definitions
-└── utils/          # Utility functions
-```
-
-### Key Components
-
-1. **Agent Orchestrator**: Manages agent selection and execution
-2. **Tool Registry**: Manages available tools and their execution
-3. **Repository Analyzer**: Understands codebase structure and context
-4. **LLM Client**: Handles communication with OpenRouter API
-5. **Configuration Manager**: Manages environment and runtime configuration
-
-## 🎨 Terminal UI Features
-
-- **Colored Output**: Different colors for different types of information
-- **Progress Indicators**: Spinners and progress bars for long operations
-- **Interactive Prompts**: User-friendly input collection
-- **Formatted Tables**: Clean display of structured data
-- **Error Handling**: Clear error messages with helpful suggestions
-
-## 🔧 Development
-
-```bash
-# Install dependencies
-npm install
-
-# Development mode with hot reload
-npm run dev
-
-# Build TypeScript
-npm run build
-
-# Run linting
-npm run lint
-
-# Run tests
 npm test
 ```
 
-## 📝 API Usage
+## Project Structure
 
-You can also use DevRev Coder Agent programmatically:
-
-```typescript
-import DevRevCoderAgent from 'devrev-coder-agent';
-
-const agent = new DevRevCoderAgent({
-  openRouter: {
-    apiKey: 'your-api-key',
-    model: 'google/gemini-2.0-flash-experimental'
-  }
-});
-
-// Execute a single request
-const result = await agent.executeRequest(
-  'Analyze this file and suggest improvements',
-  '/path/to/repository'
-);
-
-// Use multiple agents
-const results = await agent.executeWithMultipleAgents(
-  'Plan and implement a user authentication system',
-  '/path/to/repository'
-);
-
-// Get agent recommendations
-const recommendation = await agent.getAgentRecommendation(
-  'I need to refactor my database layer'
-);
+```
+src/
+├── agents/                     # Agent implementations
+│   ├── orchestrator/          # Orchestrator agent
+│   ├── subagents/            # Explorer and Coder agents
+│   ├── actions/              # Action system
+│   └── state/                # State management
+├── core/                      # Core utilities
+│   ├── llm/                  # LLM client
+│   ├── execution/            # Command execution
+│   └── logging/              # Logging utilities
+└── types/                     # TypeScript type definitions
 ```
 
-## 🤝 Contributing
+## Configuration
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+### OpenRouter (Recommended)
+OpenRouter provides access to multiple LLM providers through a single API:
 
-## 📄 License
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+export LITELLM_MODEL="anthropic/claude-3.5-sonnet"  # or any OpenRouter model
+export LITELLM_TEMPERATURE="0.1"
+```
 
-MIT License - see LICENSE file for details.
+### Direct OpenAI
+```bash
+export OPENAI_API_KEY="your-openai-key"
+export LITELLM_MODEL="gpt-4"
+export LITELLM_TEMPERATURE="0.1"
+```
 
-## 🆘 Troubleshooting
+### Other Providers (LiteLLM Compatible)
+```bash
+export LITE_LLM_API_KEY="your-api-key"
+export LITE_LLM_API_BASE="your-api-base-url"
+export LITELLM_MODEL="your-model-name"
+```
 
-### Common Issues
+### Popular Model Examples
+```bash
+# Anthropic Claude via OpenRouter
+export LITELLM_MODEL="anthropic/claude-3.5-sonnet"
 
-1. **Missing API Key**: Run `devrev-coder config --init` and add your OpenRouter API key
-2. **Permission Errors**: Make sure you have read/write permissions in the target directory
-3. **Large Files**: Increase `MAX_FILE_SIZE_KB` in your configuration for larger files
-4. **Rate Limits**: The system includes built-in rate limiting for API calls
+# OpenAI GPT-4 via OpenRouter  
+export LITELLM_MODEL="openai/gpt-4"
 
-### Getting Help
+# Google Gemini via OpenRouter
+export LITELLM_MODEL="google/gemini-pro"
 
-- Check the logs by setting `LOG_LEVEL=debug`
-- Use `devrev-coder --help` for command help
-- Review the examples above for common usage patterns
+# Qwen Coder via OpenRouter
+export LITELLM_MODEL="qwen/qwen-2.5-coder-32b-instruct"
+```
 
----
+## License
 
-**Built with ❤️ using TypeScript, OpenRouter, and Chalk**
+MIT

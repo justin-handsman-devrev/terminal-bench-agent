@@ -1,0 +1,30 @@
+{
+    "run_id": "2025-09-14__14-24-59",
+    "uuid": "256ee5da-ec61-4dc8-b10e-1738f4d364ae",
+    "dataset_path": null,
+    "dataset_name": "terminal-bench-core",
+    "dataset_version": "head",
+    "output_path": "/Users/justin-handsman/terminal-agent/runs",
+    "agent_name": "typescript-multi-agent",
+    "no_rebuild": false,
+    "cleanup": false,
+    "log_level": 20,
+    "task_ids": [
+        "analyze-access-logs"
+    ],
+    "exclude_task_ids": null,
+    "n_tasks": null,
+    "n_concurrent_trials": 4,
+    "n_attempts": 1,
+    "dataset_size": 1,
+    "accuracy": 0.0,
+    "model_name": null,
+    "start_time": "2025-09-14T18:25:26.527859+00:00",
+    "end_time": "2025-09-14T18:27:40.254112+00:00",
+    "commit_hash": "c40b9054178584e0ce999aa8bbcb8b71919a9a4f",
+    "username": "justinhandsman",
+    "s3_bucket": null,
+    "agent_kwargs": null,
+    "pass_at_k": {},
+    "resumed_at": null
+}
