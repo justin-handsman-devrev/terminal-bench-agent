@@ -1,0 +1,50 @@
+{
+  "name": "multi-agent-coding-system-ts",
+  "version": "0.1.0",
+  "description": "TypeScript implementation of a multi-agent AI coding system",
+  "main": "dist/index.js",
+  "bin": {
+    "terminal-agent": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "mkdir -p dist/agents/system-messages/md-files && cp -r src/agents/system-messages/md-files/* dist/agents/system-messages/md-files/",
+    "dev": "tsx src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "ai",
+    "multi-agent",
+    "coding",
+    "typescript",
+    "orchestrator"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/js-yaml": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "^11.0.0",
+    "dotenv": "^17.2.2",
+    "js-yaml": "^4.1.0",
+    "openai": "^4.0.0",
+    "winston": "^3.11.0",
+    "zod": "^3.22.0"
+  }
+}
