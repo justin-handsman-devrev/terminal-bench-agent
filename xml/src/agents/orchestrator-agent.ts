@@ -338,6 +338,8 @@ private async loadProfile(profileOrName: string | TaskProfile, overrides?: Parti
     winston.info(`Starting task with max turns: ${maxTurns} (profile: ${profile.name})`);
 
     let turnsExecuted = 0;
+    let consecutiveSyntaxErrors = 0;
+    const maxConsecutiveSyntaxErrors = 3; // Circuit breaker threshold
 
     while (!this.state.done && turnsExecuted < maxTurns) {
       turnsExecuted += 1;
@@ -345,6 +347,33 @@ private async loadProfile(profileOrName: string | TaskProfile, overrides?: Parti
 
       try {
         const result = await this.executeTurn(instruction, turnsExecuted);
+
+        // Check for repeated syntax errors (circuit breaker) - now multi-language
+        const hasSyntaxError = result.turn.envResponses.some(response => 
+          response.includes('IndentationError') || 
+          response.includes('SyntaxError') || 
+          response.includes('[SYNTAX ERROR]') ||
+          response.includes('compilation failed') ||
+          response.includes('cannot find symbol') ||
+          response.includes('undeclared identifier') ||
+          response.includes('borrow checker') ||
+          response.includes('expected \';\'') ||
+          response.includes('missing return type')
+        );
+
+        if (hasSyntaxError) {
+          consecutiveSyntaxErrors++;
+          winston.warn(`Syntax error detected (consecutive count: ${consecutiveSyntaxErrors})`);
+          
+          if (consecutiveSyntaxErrors >= maxConsecutiveSyntaxErrors) {
+            winston.error(`CIRCUIT BREAKER: ${consecutiveSyntaxErrors} consecutive syntax errors detected. Stopping to prevent infinite loop.`);
+            this.state.done = true;
+            this.state.finishMessage = `Task stopped due to repeated syntax errors (${consecutiveSyntaxErrors} consecutive). Manual intervention required.`;
+            break;
+          }
+        } else {
+          consecutiveSyntaxErrors = 0; // Reset counter on successful turn
+        }
 
         if (result.done) {
           winston.info(`Task completed: ${result.finishMessage}`);

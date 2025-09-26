@@ -25,12 +25,12 @@ const TaskProfileSchema = z.object({
   subagentDefaults: SubagentDefaultsSchema,
   adaptiveTurnLimit: z.boolean(),
   checkpointInterval: z.number().optional(),
-  allowQuestions: z.boolean(),
-  buildValidation: ValidationConfigSchema,
-  contextStrategy: z.enum(['semantic', 'conservative', 'aggressive']),
-  parallelExecution: z.boolean(),
-  errorRecovery: z.enum(['strict', 'lenient', 'aggressive']),
-  compatibilityLanguage: z.string(),
+  allowQuestions: z.boolean().optional(),
+  buildValidation: ValidationConfigSchema.optional(),
+  contextStrategy: z.enum(['semantic', 'conservative', 'aggressive']).optional(),
+  parallelExecution: z.boolean().optional(),
+  errorRecovery: z.enum(['strict', 'lenient', 'aggressive']).optional(),
+  compatibilityLanguage: z.string().optional(),
 });
 
 
@@ -53,6 +53,37 @@ export interface TaskProfile {
     coderMaxTurns: number;
   };
   adaptiveTurnLimit: boolean;
+  checkpointInterval?: number;
+  allowQuestions?: boolean;
+  buildValidation?: ValidationConfig;
+  contextStrategy?: 'semantic' | 'conservative' | 'aggressive';
+  parallelExecution?: boolean;
+  errorRecovery?: 'strict' | 'lenient' | 'aggressive';
+  compatibilityLanguage?: string;
+}
+
+const DEFAULT_VALIDATION_CONFIG: ValidationConfig = {
+  blockOnCritical: true,
+  blockOnWarnings: false,
+  runTests: true,
+};
+
+const DEFAULT_TASK_PROFILE: TaskProfile = {
+  name: 'default',
+  description: 'Default task profile with balanced settings',
+  maxTurns: 30,
+  subagentDefaults: {
+    explorerMaxTurns: 15,
+    coderMaxTurns: 25,
+  },
+  adaptiveTurnLimit: true,
+  checkpointInterval: 10,
+  allowQuestions: true,
+  buildValidation: DEFAULT_VALIDATION_CONFIG,
+  contextStrategy: 'semantic',
+  parallelExecution: true,
+  errorRecovery: 'lenient',
+  compatibilityLanguage: 'typescript',
 };
 
 export async function detectProfile(taskDescription: string, llmClient: LLMClient): Promise<TaskProfile> {
@@ -66,6 +97,11 @@ Available Profiles:
    - maxTurns: 20
    - subagentDefaults: { explorerMaxTurns: 20, coderMaxTurns: 20 }
    - adaptiveTurnLimit: true
+   - allowQuestions: true
+   - contextStrategy: 'aggressive'
+   - parallelExecution: false
+   - errorRecovery: 'strict'
+   - compatibilityLanguage: 'python'
 
 2. BUGFIX_PROFILE:
    - Name: bugfix
@@ -73,6 +109,11 @@ Available Profiles:
    - maxTurns: 25
    - subagentDefaults: { explorerMaxTurns: 25, coderMaxTurns: 25 }
    - adaptiveTurnLimit: true
+   - allowQuestions: true
+   - contextStrategy: 'semantic'
+   - parallelExecution: true
+   - errorRecovery: 'lenient'
+   - compatibilityLanguage: 'typescript'
 
 3. FEATURE_PROFILE:
    - Name: feature
@@ -80,6 +121,11 @@ Available Profiles:
    - maxTurns: 45
    - subagentDefaults: { explorerMaxTurns: 15, coderMaxTurns: 35 }
    - adaptiveTurnLimit: true
+   - allowQuestions: true
+   - contextStrategy: 'semantic'
+   - parallelExecution: true
+   - errorRecovery: 'lenient'
+   - compatibilityLanguage: 'typescript'
 
 4. PRODUCTION_PROFILE:
    - Name: production
@@ -87,6 +133,11 @@ Available Profiles:
    - maxTurns: 30
    - subagentDefaults: { explorerMaxTurns: 15, coderMaxTurns: 30 }
    - adaptiveTurnLimit: false
+   - allowQuestions: false
+   - contextStrategy: 'conservative'
+   - parallelExecution: false
+   - errorRecovery: 'strict'
+   - compatibilityLanguage: 'typescript'
 
 5. EXPLORATION_PROFILE:
    - Name: exploration
@@ -94,6 +145,11 @@ Available Profiles:
    - maxTurns: 20
    - subagentDefaults: { explorerMaxTurns: 20, coderMaxTurns: 20 }
    - adaptiveTurnLimit: true
+   - allowQuestions: true
+   - contextStrategy: 'aggressive'
+   - parallelExecution: true
+   - errorRecovery: 'aggressive'
+   - compatibilityLanguage: 'python'
 
 6. PROTOTYPE_PROFILE:
    - Name: prototype
@@ -101,6 +157,11 @@ Available Profiles:
    - maxTurns: 25
    - subagentDefaults: { explorerMaxTurns: 10, coderMaxTurns: 25 }
    - adaptiveTurnLimit: false
+   - allowQuestions: true
+   - contextStrategy: 'semantic'
+   - parallelExecution: true
+   - errorRecovery: 'lenient'
+   - compatibilityLanguage: 'typescript'
 
 7. COMPATIBILITY_PROFILE:
    - Name: compatibility
@@ -108,12 +169,18 @@ Available Profiles:
    - maxTurns: 25
    - subagentDefaults: { explorerMaxTurns: 25, coderMaxTurns: 20 }
    - adaptiveTurnLimit: false
+   - allowQuestions: true
+   - contextStrategy: 'conservative'
+   - parallelExecution: false
+   - errorRecovery: 'strict'
+   - compatibilityLanguage: 'javascript'
 
 Instructions:
-- If the task mentions images, analysis of visuals, diagrams, or multimodal content, use VISION_PROFILE.
-- If the task clearly matches one of these profiles, return that profile.
-- If the task does not exactly match any of them but still fits a general pattern, generate a new custom profile with a unique name and description.
-- Output must be in valid JSON format matching the TaskProfile schema.
+- If the task mentions images, analysis of visuals, diagrams, or multimodal content, generate VISION_PROFILE with name: 'vision', description: 'Optimized for vision tasks', maxTurns: 15, subagentDefaults: { explorerMaxTurns: 10, coderMaxTurns: 10 }, adaptiveTurnLimit: true, allowQuestions: true, contextStrategy: 'semantic', parallelExecution: true, errorRecovery: 'lenient', compatibilityLanguage: 'typescript'.
+- If the task clearly matches one of these profiles, return that profile with all fields: name, description, maxTurns, subagentDefaults, adaptiveTurnLimit, allowQuestions, contextStrategy, parallelExecution, errorRecovery, compatibilityLanguage.
+- If the task does not exactly match any of them but still fits a general pattern, generate a new custom profile with a unique name and description. Include as many of the additional fields as make sense for the task.
+- Output must be in valid JSON format matching the full TaskProfile schema. Include all required fields and optional ones where appropriate.
+- If unsure about an optional field, omit it to use defaults.
 
 Return only the JSON object for the selected or generated profile.
 `;
@@ -131,10 +198,13 @@ Return only the JSON object for the selected or generated profile.
     // First parse as raw object
     const rawProfile = JSON.parse(response.content.trim());
     
-    // Validate with Zod schema
+    // Validate with Zod schema (allows partial for optionals)
     const validatedProfile = TaskProfileSchema.parse(rawProfile);
     
-    return validatedProfile;
+    // Merge with defaults to ensure complete profile
+    const completeProfile = mergeProfile(DEFAULT_TASK_PROFILE, validatedProfile);
+    
+    return completeProfile;
   } catch (e) {
     console.error('Failed to parse or validate profile from LLM response:', e);
     
@@ -142,7 +212,9 @@ Return only the JSON object for the selected or generated profile.
       console.error('Zod validation errors:', e.errors);
     }
     
-    throw new Error(`LLM did not return a valid JSON profile. Error: ${e}`);
+    // Fallback to default profile on error
+    console.warn('Using default profile due to parsing error');
+    return DEFAULT_TASK_PROFILE;
   }
 }
 
@@ -157,6 +229,11 @@ export function mergeProfile(profile: TaskProfile, overrides: Partial<TaskProfil
     subagentDefaults: {
       ...profile.subagentDefaults,
       ...(overrides.subagentDefaults || {}),
+    },
+    buildValidation: {
+      ...DEFAULT_VALIDATION_CONFIG,
+      ...(profile.buildValidation || {}),
+      ...(overrides.buildValidation || {}),
     },
   };
 }

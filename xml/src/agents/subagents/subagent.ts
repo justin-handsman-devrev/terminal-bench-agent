@@ -158,7 +158,7 @@ export class Subagent {
     ];
 
     const recentContent = recentMessages
-      .map(msg => msg.content.toLowerCase())
+      .map(msg => typeof msg.content === 'string' ? msg.content.toLowerCase() : '')
       .join(' ');
 
     // Check for progress indicators
@@ -217,6 +217,9 @@ export class Subagent {
       { role: 'user', content: this.buildTaskPrompt() },
     ];
 
+    let consecutiveSyntaxErrors = 0;
+    const maxConsecutiveSyntaxErrors = 3; // Circuit breaker for subagents too
+
     for (let turnNum = 0; turnNum < maxTurns; turnNum++) {
       winston.debug(`Subagent ${this.task.agentType} executing turn ${turnNum + 1}`);
 
@@ -236,6 +239,39 @@ export class Subagent {
         const envResponse = result.envResponses.join('\n');
         this.messages.push({ role: 'user', content: envResponse });
         winston.debug(`Environment Response:\n${envResponse}`);
+
+        // Check for syntax errors (circuit breaker) - now multi-language
+        const hasSyntaxError = envResponse.includes('IndentationError') || 
+                             envResponse.includes('SyntaxError') || 
+                             envResponse.includes('[SYNTAX ERROR]') ||
+                             envResponse.includes('compilation failed') ||
+                             envResponse.includes('cannot find symbol') ||
+                             envResponse.includes('undeclared identifier') ||
+                             envResponse.includes('borrow checker') ||
+                             envResponse.includes('expected \';\'') ||
+                             envResponse.includes('missing return type');
+
+        if (hasSyntaxError) {
+          consecutiveSyntaxErrors++;
+          winston.warn(`Subagent syntax error detected (consecutive count: ${consecutiveSyntaxErrors})`);
+          
+          if (consecutiveSyntaxErrors >= maxConsecutiveSyntaxErrors) {
+            winston.error(`SUBAGENT CIRCUIT BREAKER: ${consecutiveSyntaxErrors} consecutive syntax errors. Forcing early termination.`);
+            const errorReport: SubagentReport = {
+              contexts: [],
+              comments: `Task terminated due to repeated syntax errors (${consecutiveSyntaxErrors} consecutive). The agent was unable to generate valid code and got stuck in an error loop. Manual code review and fixes are required.`,
+              meta: {
+                trajectory: [...this.messages],
+                numTurns: turnNum + 1,
+                totalInputTokens: this.llmClient.countInputTokens(this.messages),
+                totalOutputTokens: this.llmClient.countOutputTokens(this.messages)
+              }
+            };
+            return errorReport;
+          }
+        } else {
+          consecutiveSyntaxErrors = 0; // Reset on successful turn
+        }
 
         if (result.hasError && envResponse.includes('[PARSE ERROR]')) {
           const hint = `\nHint: Use only supported tags. File ops: <file> with action: read|write|edit|multi_edit|metadata. Search: <search> with action: grep|glob|ls. Do not use <read>/<grep> tags. Use block scalars for multi-line edits (oldString: |, newString: |). Always read back after edits.`;

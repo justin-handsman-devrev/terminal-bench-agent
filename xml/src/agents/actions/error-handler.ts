@@ -66,10 +66,10 @@ export class ErrorClassifier {
       suggestion: 'Missing dependency. May need to install required packages.'
     },
     {
-      pattern: /syntax\s+error|parse\s+error|unexpected\s+token|invalid\s+syntax/i,
+      pattern: /syntax\s+error|parse\s+error|unexpected\s+token|invalid\s+syntax|indentationerror|unexpected\s+indent|expected\s+an\s+indented\s+block|compilation\s+failed|cannot\s+find\s+symbol|undeclared\s+identifier|expected\s+';'|missing\s+return\s+type|borrow\s+checker/i,
       type: ErrorType.SYNTAX,
       isRetriable: false,
-      suggestion: 'Syntax error in command or code. Review and fix the syntax.'
+      suggestion: 'Syntax or compilation error in code. Review and fix the syntax, missing imports, or type declarations.'
     },
     {
       pattern: /invalid\s+option|unknown\s+option|invalid\s+argument/i,

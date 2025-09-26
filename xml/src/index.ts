@@ -66,13 +66,40 @@ program
 
     orchestrator.setup(executor, options.logDir);
 
+    const fs = require('fs');
+    const tallyPath = path.join(options.logDir, 'token-tally.json');
+    let tally = { totalInputTokens: 0, totalOutputTokens: 0, runCount: 0 };
+    if (fs.existsSync(tallyPath)) {
+      try {
+        const tallyData = fs.readFileSync(tallyPath, 'utf8');
+        tally = JSON.parse(tallyData);
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        winston.warn(`Failed to load tally file: ${errorMsg}`);
+      }
+    }
+
     try {
       winston.info(`Starting task execution: ${task}`);
       winston.info(`Model: ${options.model || 'default'}`);
       winston.info(`Temperature: ${options.temperature}`);
       winston.info(`Max turns: ${options.maxTurns}`);
+      winston.info(`Cumulative tokens before run - Input: ${tally.totalInputTokens}, Output: ${tally.totalOutputTokens}, Runs: ${tally.runCount}`);
 
       const result = await orchestrator.run(task, parseInt(options.maxTurns));
+
+      const thisRunTokenUsage = orchestrator.getTokenUsage();
+      tally.totalInputTokens += thisRunTokenUsage.input;
+      tally.totalOutputTokens += thisRunTokenUsage.output;
+      tally.runCount += 1;
+
+      // Save updated tally
+      try {
+        fs.writeFileSync(tallyPath, JSON.stringify(tally, null, 2), 'utf8');
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        winston.warn(`Failed to save tally file: ${errorMsg}`);
+      }
 
       winston.info('\n' + '='.repeat(60));
       winston.info('EXECUTION RESULT:');
@@ -82,8 +109,8 @@ program
       winston.info(`Turns executed: ${result.turnsExecuted}`);
       winston.info(`Max turns reached: ${result.maxTurnsReached}`);
 
-      const tokenUsage = orchestrator.getTokenUsage();
-      winston.info(`Token usage - Input: ${tokenUsage.input}, Output: ${tokenUsage.output}`);
+      winston.info(`This run token usage - Input: ${thisRunTokenUsage.input}, Output: ${thisRunTokenUsage.output}`);
+      winston.info(`Cumulative token usage - Input: ${tally.totalInputTokens}, Output: ${tally.totalOutputTokens}, Total Runs: ${tally.runCount}`);
 
       orchestrator.destroy();
       process.exit(result.completed ? 0 : 1);

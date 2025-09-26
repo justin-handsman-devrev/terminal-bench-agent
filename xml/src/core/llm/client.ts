@@ -16,7 +16,6 @@ export class LLMClient {
   constructor(config: LLMClientConfig) {
     this.config = {
       maxRetries: 10,
-      maxTokens: 4096,
       temperature: process.env.OPENROUTER_TEMPERATURE ? parseFloat(process.env.OPENROUTER_TEMPERATURE) : 0.3,
       ...config,
       provider: { ...this.parseProviderFromEnv(), ...config.provider },

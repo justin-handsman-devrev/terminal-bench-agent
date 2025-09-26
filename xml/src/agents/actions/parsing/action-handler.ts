@@ -387,6 +387,24 @@ export class ActionHandler {
     if (classification.suggestion) {
       suggestions.push(`[AUTO-ANALYSIS] ${classification.suggestion}`);
     }
+
+    // Special handling for syntax errors across multiple languages to prevent infinite retry loops
+    if (output.includes('IndentationError') || output.includes('SyntaxError')) {
+      suggestions.push('\n[CRITICAL] Python syntax error detected - this will fail repeatedly until the source code is fixed.');
+      suggestions.push('[ACTION REQUIRED] Use file operations to read and fix the Python file before attempting to run it again.');
+      if (output.includes('IndentationError: unexpected indent')) {
+        suggestions.push('[SPECIFIC FIX] Remove extra indentation at the reported line number.');
+      }
+    } else if (output.includes('compilation failed') || output.includes('cannot find symbol')) {
+      suggestions.push('\n[CRITICAL] Java compilation error detected - fix syntax issues in the Java file.');
+      suggestions.push('[ACTION REQUIRED] Check for missing imports, semicolons, or class declarations.');
+    } else if (output.includes('expected')) {
+      suggestions.push('\n[CRITICAL] Compilation error detected - syntax issue in source code.');
+      suggestions.push('[ACTION REQUIRED] Review the error message and fix the missing or incorrect syntax.');
+    } else if (output.includes('borrow checker')) {
+      suggestions.push('\n[CRITICAL] Rust borrow checker error - ownership or lifetime issue.');
+      suggestions.push('[ACTION REQUIRED] Review Rust ownership rules and lifetime annotations.');
+    }
     
     if (output.includes('No such file or directory')) {
       const fileMatch = output.match(/['"](.*?)['"]/);
@@ -867,6 +885,13 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
       this.modifiedFiles.add(action.filePath);
       
       this.invalidateValidationCache(action.filePath);
+
+      // Immediate validation for all supported languages
+      const validationResult = await this.validateFileLanguage(action.filePath);
+      if (!validationResult.isValid) {
+        const errorContent = `${content}\n\n[IMMEDIATE VALIDATION FAILED] ${this.getLanguageName(action.filePath)} syntax error detected:\n${validationResult.error}\n\n[ACTION REQUIRED] Fix the syntax errors in the file before proceeding.`;
+        return [formatToolOutput('file', errorContent), true];
+      }
     }
     
     return [formatToolOutput('file', content), isError];
@@ -1215,6 +1240,52 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
         if (level === 'WARNING') hasWarnings = true;
       }
 
+      // Add validation for other languages
+      const javaCheck = await this.executor.execute('find . -name "*.java" | head -1');
+      if (javaCheck.output.trim()) {
+        const javaResult = await this.tryJavaValidation();
+        const { level, message } = this.categorizeValidationError(javaResult);
+        validationResults.push(`[${level}] ${message}`);
+        if (level === 'CRITICAL') hasCriticalError = true;
+        if (level === 'WARNING') hasWarnings = true;
+      }
+
+      const goCheck = await this.executor.execute('find . -name "*.go" | head -1');
+      if (goCheck.output.trim()) {
+        const goResult = await this.tryGoValidation();
+        const { level, message } = this.categorizeValidationError(goResult);
+        validationResults.push(`[${level}] ${message}`);
+        if (level === 'CRITICAL') hasCriticalError = true;
+        if (level === 'WARNING') hasWarnings = true;
+      }
+
+      const rustCheck = await this.executor.execute('find . -name "*.rs" | head -1');
+      if (rustCheck.output.trim()) {
+        const rustResult = await this.tryRustValidation();
+        const { level, message } = this.categorizeValidationError(rustResult);
+        validationResults.push(`[${level}] ${message}`);
+        if (level === 'CRITICAL') hasCriticalError = true;
+        if (level === 'WARNING') hasWarnings = true;
+      }
+
+      const rubyCheck = await this.executor.execute('find . -name "*.rb" | head -1');
+      if (rubyCheck.output.trim()) {
+        const rubyResult = await this.tryRubyValidation();
+        const { level, message } = this.categorizeValidationError(rubyResult);
+        validationResults.push(`[${level}] ${message}`);
+        if (level === 'CRITICAL') hasCriticalError = true;
+        if (level === 'WARNING') hasWarnings = true;
+      }
+
+      const csharpCheck = await this.executor.execute('find . -name "*.cs" | head -1');
+      if (csharpCheck.output.trim()) {
+        const csharpResult = await this.tryCSharpValidation();
+        const { level, message } = this.categorizeValidationError(csharpResult);
+        validationResults.push(`[${level}] ${message}`);
+        if (level === 'CRITICAL') hasCriticalError = true;
+        if (level === 'WARNING') hasWarnings = true;
+      }
+
       const makefileCheck = await this.executor.execute('test -f Makefile -o -f makefile && echo "make" || echo "none"');
       if (makefileCheck.output.includes('make')) {
         const makeResult = await this.tryMakeValidation();
@@ -1299,8 +1370,19 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
         for (const file of files) {
           const compileResult = await this.executor.execute(`python3 -m py_compile "${file}" 2>&1`);
           if (compileResult.exitCode !== 0) {
+            // Enhanced error analysis for Python syntax issues
+            let enhancedMessage = `[PYTHON ERROR] Python compilation failed for ${file}:\n${compileResult.output}`;
+            
+            if (compileResult.output.includes('IndentationError')) {
+              enhancedMessage += '\n\n[CRITICAL] IndentationError detected - this prevents the file from being imported or executed.';
+              enhancedMessage += '\n[FIX] Check line indentation, ensure consistent spacing, avoid mixing tabs and spaces.';
+            } else if (compileResult.output.includes('SyntaxError')) {
+              enhancedMessage += '\n\n[CRITICAL] SyntaxError detected - this prevents the file from running.';
+              enhancedMessage += '\n[FIX] Review the syntax at the indicated line number.';
+            }
+            
             return { 
-              message: `[PYTHON ERROR] Python compilation failed for ${file}:\n${compileResult.output}`, 
+              message: enhancedMessage, 
               error: true 
             };
           }
@@ -1351,6 +1433,132 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
     }
   }
 
+  private async tryJavaValidation(): Promise<{ message: string; error: boolean }> {
+    try {
+      const javaFiles = await this.executor.execute('find . -name "*.java" | head -5');
+      if (javaFiles.output.trim()) {
+        const files = javaFiles.output.trim().split('\n');
+        for (const file of files) {
+          const compileResult = await this.executor.execute(`javac -cp . "${file}" 2>&1`);
+          if (compileResult.exitCode !== 0) {
+            return { 
+              message: `[JAVA ERROR] Java compilation failed for ${file}:\n${compileResult.output}`, 
+              error: true 
+            };
+          }
+          // Clean up class files
+          const classFile = file.replace('.java', '.class');
+          await this.executor.execute(`rm -f "${classFile}"`);
+        }
+        return { message: '[JAVA SUCCESS] Java files compiled successfully', error: false };
+      }
+      return { message: '[INFO] Java project detected but no .java files found', error: false };
+    } catch (error) {
+      return { message: `[ERROR] Java validation failed: ${error}`, error: true };
+    }
+  }
+
+  private async tryGoValidation(): Promise<{ message: string; error: boolean }> {
+    try {
+      const goFiles = await this.executor.execute('find . -name "*.go" | head -5');
+      if (goFiles.output.trim()) {
+        const files = goFiles.output.trim().split('\n');
+        for (const file of files) {
+          // First try go fmt
+          const fmtResult = await this.executor.execute(`go fmt "${file}" 2>&1`);
+          if (fmtResult.exitCode !== 0) {
+            return { 
+              message: `[GO ERROR] Go formatting failed for ${file}:\n${fmtResult.output}`, 
+              error: true 
+            };
+          }
+          
+          // Then try build
+          const buildResult = await this.executor.execute(`go build -o /dev/null "${file}" 2>&1`);
+          if (buildResult.exitCode !== 0) {
+            return { 
+              message: `[GO ERROR] Go compilation failed for ${file}:\n${buildResult.output}`, 
+              error: true 
+            };
+          }
+        }
+        return { message: '[GO SUCCESS] Go files compiled successfully', error: false };
+      }
+      return { message: '[INFO] Go project detected but no .go files found', error: false };
+    } catch (error) {
+      return { message: `[ERROR] Go validation failed: ${error}`, error: true };
+    }
+  }
+
+  private async tryRustValidation(): Promise<{ message: string; error: boolean }> {
+    try {
+      const rustFiles = await this.executor.execute('find . -name "*.rs" | head -5');
+      if (rustFiles.output.trim()) {
+        const files = rustFiles.output.trim().split('\n');
+        for (const file of files) {
+          const compileResult = await this.executor.execute(`rustc --emit=metadata --crate-type lib "${file}" -o /dev/null 2>&1`);
+          if (compileResult.exitCode !== 0) {
+            return { 
+              message: `[RUST ERROR] Rust compilation failed for ${file}:\n${compileResult.output}`, 
+              error: true 
+            };
+          }
+        }
+        return { message: '[RUST SUCCESS] Rust files compiled successfully', error: false };
+      }
+      return { message: '[INFO] Rust project detected but no .rs files found', error: false };
+    } catch (error) {
+      return { message: `[ERROR] Rust validation failed: ${error}`, error: true };
+    }
+  }
+
+  private async tryRubyValidation(): Promise<{ message: string; error: boolean }> {
+    try {
+      const rubyFiles = await this.executor.execute('find . -name "*.rb" | head -5');
+      if (rubyFiles.output.trim()) {
+        const files = rubyFiles.output.trim().split('\n');
+        for (const file of files) {
+          const checkResult = await this.executor.execute(`ruby -c "${file}" 2>&1`);
+          if (checkResult.exitCode !== 0) {
+            return { 
+              message: `[RUBY ERROR] Ruby syntax check failed for ${file}:\n${checkResult.output}`, 
+              error: true 
+            };
+          }
+        }
+        return { message: '[RUBY SUCCESS] Ruby files passed syntax check', error: false };
+      }
+      return { message: '[INFO] Ruby project detected but no .rb files found', error: false };
+    } catch (error) {
+      return { message: `[ERROR] Ruby validation failed: ${error}`, error: true };
+    }
+  }
+
+  private async tryCSharpValidation(): Promise<{ message: string; error: boolean }> {
+    try {
+      const csharpFiles = await this.executor.execute('find . -name "*.cs" | head -5');
+      if (csharpFiles.output.trim()) {
+        const files = csharpFiles.output.trim().split('\n');
+        for (const file of files) {
+          const compileResult = await this.executor.execute(`mcs -target:library "${file}" 2>&1`);
+          if (compileResult.exitCode !== 0) {
+            return { 
+              message: `[C# ERROR] C# compilation failed for ${file}:\n${compileResult.output}`, 
+              error: true 
+            };
+          }
+          // Clean up dll files
+          const dllFile = file.replace('.cs', '.dll');
+          await this.executor.execute(`rm -f "${dllFile}"`);
+        }
+        return { message: '[C# SUCCESS] C# files compiled successfully', error: false };
+      }
+      return { message: '[INFO] C# project detected but no .cs files found', error: false };
+    } catch (error) {
+      return { message: `[ERROR] C# validation failed: ${error}`, error: true };
+    }
+  }
+
   private categorizeValidationError(result: { message: string; error: boolean }): { level: 'CRITICAL' | 'WARNING' | 'INFO'; message: string } {
     if (!result.error) {
       return { level: 'INFO', message: result.message };
@@ -1360,6 +1568,7 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
     
     if (
       message.includes('syntaxerror') ||
+      message.includes('indentationerror') ||
       message.includes('cannot find module') ||
       message.includes('module not found') ||
       message.includes('compilation failed') ||
@@ -1367,6 +1576,12 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
       message.includes('unexpected token') ||
       message.includes('undefined is not') ||
       message.includes('referenceerror') ||
+      message.includes('cannot find symbol') ||
+      message.includes('undeclared identifier') ||
+      message.includes('expected \';\'') ||
+      message.includes('missing return type') ||
+      message.includes('borrow checker') ||
+      message.includes('lifetime') && message.includes('error') ||
       message.includes('typeerror') && !message.includes('typescript')
     ) {
       return { level: 'CRITICAL', message: result.message };
@@ -1590,6 +1805,261 @@ Newest Entry: ${stats.newestEntry ? stats.newestEntry.toISOString() : 'N/A'}`;
 
   getValidationCacheStats() {
     return this.validationCache?.getStats();
+  }
+
+  private getLanguageName(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    const languageMap: Record<string, string> = {
+      'py': 'Python',
+      'js': 'JavaScript',
+      'ts': 'TypeScript', 
+      'java': 'Java',
+      'c': 'C',
+      'cpp': 'C++',
+      'cc': 'C++',
+      'cxx': 'C++',
+      'hpp': 'C++',
+      'h': 'C/C++',
+      'go': 'Go',
+      'rs': 'Rust',
+      'rb': 'Ruby',
+      'cs': 'C#'
+    };
+    return languageMap[ext || ''] || 'Unknown';
+  }
+
+  private async validateFileLanguage(filePath: string): Promise<{
+    isValid: boolean;
+    error?: string;
+    suggestedFix?: string;
+  }> {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    
+    try {
+      switch (ext) {
+        case 'py':
+          return await this.validatePythonFile(filePath);
+        case 'js':
+        case 'mjs':
+          return await this.validateJavaScriptFile(filePath);
+        case 'ts':
+          return await this.validateTypeScriptFile(filePath);
+        case 'java':
+          return await this.validateJavaFile(filePath);
+        case 'c':
+          return await this.validateCFile(filePath);
+        case 'cpp':
+        case 'cc':
+        case 'cxx':
+          return await this.validateCppFile(filePath);
+        case 'go':
+          return await this.validateGoFile(filePath);
+        case 'rs':
+          return await this.validateRustFile(filePath);
+        case 'rb':
+          return await this.validateRubyFile(filePath);
+        case 'cs':
+          return await this.validateCSharpFile(filePath);
+        default:
+          return { isValid: true }; // Skip validation for unsupported types
+      }
+    } catch (error) {
+      return { isValid: false, error: `Validation failed: ${error}` };
+    }
+  }
+
+  private async validatePythonFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const result = await this.executor.execute(`python3 -m py_compile "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    let suggestedFix = '';
+    if (result.output.includes('IndentationError')) {
+      suggestedFix = 'Fix indentation - ensure consistent spacing and proper nesting';
+    } else if (result.output.includes('SyntaxError')) {
+      suggestedFix = 'Check for missing colons, parentheses, or quotes';
+    }
+    
+    return { isValid: false, error: result.output.trim(), suggestedFix };
+  }
+
+  private async validateJavaScriptFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const nodeCheck = await this.executor.execute(`which node 2>/dev/null`);
+    if (nodeCheck.exitCode !== 0) {
+      return { isValid: true }; // Skip if Node.js not available
+    }
+
+    const result = await this.executor.execute(`node --check "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check for missing semicolons, unmatched brackets, or ES6+ syntax issues'
+    };
+  }
+
+  private async validateTypeScriptFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const tscCheck = await this.executor.execute(`which tsc 2>/dev/null || which npx 2>/dev/null`);
+    if (tscCheck.exitCode !== 0) {
+      return this.validateJavaScriptFile(filePath); // Fallback to JS validation
+    }
+
+    const result = await this.executor.execute(`npx tsc --noEmit --skipLibCheck "${filePath}" 2>&1 || tsc --noEmit --skipLibCheck "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check TypeScript syntax, type annotations, and imports'
+    };
+  }
+
+  private async validateJavaFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const javacCheck = await this.executor.execute(`which javac 2>/dev/null`);
+    if (javacCheck.exitCode !== 0) {
+      return { isValid: true }; // Skip if compiler not available
+    }
+
+    const result = await this.executor.execute(`javac -cp . "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      // Clean up compiled class file
+      const classFile = filePath.replace('.java', '.class');
+      await this.executor.execute(`rm -f "${classFile}"`);
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check Java syntax, missing semicolons, package declarations, or import statements'
+    };
+  }
+
+  private async validateCFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const gccCheck = await this.executor.execute(`which gcc 2>/dev/null`);
+    if (gccCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    const result = await this.executor.execute(`gcc -fsyntax-only "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check C syntax, missing semicolons, include directives, or function declarations'
+    };
+  }
+
+  private async validateCppFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const gppCheck = await this.executor.execute(`which g++ 2>/dev/null`);
+    if (gppCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    const result = await this.executor.execute(`g++ -fsyntax-only -std=c++17 "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check C++ syntax, template declarations, namespace usage, or STL includes'
+    };
+  }
+
+  private async validateGoFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const goCheck = await this.executor.execute(`which go 2>/dev/null`);
+    if (goCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    // Try go fmt first for quick syntax check
+    const fmtResult = await this.executor.execute(`go fmt "${filePath}" 2>&1`);
+    if (fmtResult.exitCode !== 0) {
+      return {
+        isValid: false,
+        error: fmtResult.output.trim(),
+        suggestedFix: 'Check Go syntax, package declarations, or basic formatting issues'
+      };
+    }
+
+    // Then try build check
+    const buildResult = await this.executor.execute(`go build -o /dev/null "${filePath}" 2>&1`);
+    if (buildResult.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: buildResult.output.trim(),
+      suggestedFix: 'Check Go imports, type declarations, or function signatures'
+    };
+  }
+
+  private async validateRustFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const rustcCheck = await this.executor.execute(`which rustc 2>/dev/null`);
+    if (rustcCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    const result = await this.executor.execute(`rustc --emit=metadata --crate-type lib "${filePath}" -o /dev/null 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check Rust syntax, lifetime annotations, borrowing rules, or trait bounds'
+    };
+  }
+
+  private async validateRubyFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const rubyCheck = await this.executor.execute(`which ruby 2>/dev/null`);
+    if (rubyCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    const result = await this.executor.execute(`ruby -c "${filePath}" 2>&1`);
+    if (result.exitCode === 0) {
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: result.output.trim(),
+      suggestedFix: 'Check Ruby syntax, missing end statements, or block structure'
+    };
+  }
+
+  private async validateCSharpFile(filePath: string): Promise<{ isValid: boolean; error?: string; suggestedFix?: string }> {
+    const dotnetCheck = await this.executor.execute(`which dotnet 2>/dev/null || which mcs 2>/dev/null`);
+    if (dotnetCheck.exitCode !== 0) {
+      return { isValid: true };
+    }
+
+    // Try Mono compiler first (simpler)
+    const mcsResult = await this.executor.execute(`mcs -target:library "${filePath}" 2>&1`);
+    if (mcsResult.exitCode === 0) {
+      await this.executor.execute(`rm -f "${filePath.replace('.cs', '.dll')}"`);
+      return { isValid: true };
+    }
+    
+    return {
+      isValid: false,
+      error: mcsResult.output.trim(),
+      suggestedFix: 'Check C# syntax, namespace declarations, using statements, or access modifiers'
+    };
   }
 
   destroy(): void {

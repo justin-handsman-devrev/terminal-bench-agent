@@ -121,6 +121,40 @@ export class MetricsCollector {
     error?: { type?: ErrorType; message?: string },
     context?: Record<string, any>
   ): void {
+    // Enhanced context for Python-related operations
+    const enhancedContext = { ...context };
+    
+    if (error?.message) {
+      // Track syntax errors across multiple languages
+      if (error.message.includes('IndentationError') || error.message.includes('SyntaxError')) {
+        enhancedContext.pythonSyntaxError = true;
+        enhancedContext.errorCategory = 'syntax';
+        enhancedContext.language = 'python';
+      } else if (error.message.includes('compilation failed') || error.message.includes('cannot find symbol')) {
+        enhancedContext.javaSyntaxError = true;
+        enhancedContext.errorCategory = 'syntax';
+        enhancedContext.language = 'java';
+      } else if (error.message.includes('borrow checker') || error.message.includes('lifetime')) {
+        enhancedContext.rustSyntaxError = true;
+        enhancedContext.errorCategory = 'syntax';
+        enhancedContext.language = 'rust';
+      } else if (error.message.includes('expected') && (error.message.includes("';'") || error.message.includes("'}'") || error.message.includes("')'") || error.message.includes(';'))) {
+        enhancedContext.compilationError = true;
+        enhancedContext.errorCategory = 'syntax';
+        if (error.message.includes('.cpp') || error.message.includes('.cc')) {
+          enhancedContext.language = 'cpp';
+        } else if (error.message.includes('.c')) {
+          enhancedContext.language = 'c';
+        } else if (error.message.includes('.go')) {
+          enhancedContext.language = 'go';
+        }
+      }
+      
+      if (error.message.includes('unexpected indent')) {
+        enhancedContext.indentationIssue = true;
+      }
+    }
+
     this.record({
       actionType,
       success,
@@ -128,7 +162,7 @@ export class MetricsCollector {
       timestamp: new Date(),
       errorType: error?.type,
       errorMessage: error?.message,
-      context
+      context: enhancedContext
     });
   }
 

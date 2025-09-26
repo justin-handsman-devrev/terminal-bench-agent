@@ -79,7 +79,22 @@ export class TurnExecutor {
             envResponses.push(validationOutput);
             
             if (hasCriticalError) {
-              envResponses.push('[INFO] Finish blocked - CRITICAL build/compilation errors found. Please fix syntax errors, missing imports, or compilation failures before finishing.');
+              // Enhanced error messages for multi-language syntax issues
+              if (validationOutput.includes('IndentationError') || validationOutput.includes('SyntaxError')) {
+                envResponses.push('[CRITICAL] Python syntax errors detected - these prevent the code from running at all. This will cause infinite retry loops if not fixed immediately.');
+                envResponses.push('[ACTION REQUIRED] Read the affected Python files, identify the syntax errors (especially indentation), and fix them before proceeding.');
+              } else if (validationOutput.includes('compilation failed') || validationOutput.includes('cannot find symbol')) {
+                envResponses.push('[CRITICAL] Java compilation errors detected - these prevent the code from compiling. Fix syntax issues immediately.');
+                envResponses.push('[ACTION REQUIRED] Read the affected Java files, check for missing imports, semicolons, or class declarations.');
+              } else if (validationOutput.includes('borrow checker')) {
+                envResponses.push('[CRITICAL] Rust borrow checker errors detected - ownership or lifetime issues prevent compilation.');
+                envResponses.push('[ACTION REQUIRED] Review Rust ownership rules and fix borrowing issues in the affected files.');
+              } else if (validationOutput.includes('expected')) {
+                envResponses.push('[CRITICAL] Syntax errors detected in source code - these prevent compilation/execution.');
+                envResponses.push('[ACTION REQUIRED] Read the error messages carefully and fix the missing or incorrect syntax.');
+              } else {
+                envResponses.push('[INFO] Finish blocked - CRITICAL build/compilation errors found. Please fix syntax errors, missing imports, or compilation failures before finishing.');
+              }
               hasError = true;
               break;
             }

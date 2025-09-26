@@ -108,6 +108,30 @@ export class YamlErrorRecovery {
         return `${indent}${key}: |\n${indent}  ${value.trim()}`;
       },
       description: 'Converting long strings to block scalars'
+    },
+    {
+      pattern: /^(\s*)(content|oldString|newString):\s*(.+?)(?=\n\s*\w+:|$)/gms,
+      recovery: (content, match) => {
+        const [full, indent, key, value] = match;
+        const trimmedValue = value.trim();
+        
+        // Special handling for Python code content
+        if (trimmedValue.includes('def ') || trimmedValue.includes('import ') || 
+            trimmedValue.includes('class ') || trimmedValue.includes('if __name__')) {
+          const lines = trimmedValue.split('\n');
+          const indentedLines = lines.map(line => `${indent}  ${line}`);
+          return `${indent}${key}: |\n${indentedLines.join('\n')}`;
+        }
+        
+        // Standard block scalar for other multi-line content
+        if (trimmedValue.includes('\n') || trimmedValue.includes(':') || trimmedValue.length > 100) {
+          const indentedValue = trimmedValue.replace(/\n/g, `\n${indent}  `);
+          return `${indent}${key}: |\n${indent}  ${indentedValue}`;
+        }
+        
+        return full;
+      },
+      description: 'Converting Python code content to proper block scalars'
     }
   ];
 
